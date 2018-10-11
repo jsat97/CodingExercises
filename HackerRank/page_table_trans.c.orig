@@ -1,0 +1,274 @@
+#include <assert.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+/*
+ * readPhys --
+ *   Read an aligned 32bit value from physical memory.
+ */
+static uint32_t readPhys(uint32_t physAddr);
+
+enum access {
+   ACCESS_READ = 1,
+   ACCESS_WRITE = 2,
+   ACCESS_EXECUTE = 3,
+};
+
+enum fault {
+   FAULT_NONE = 0,
+   FAULT_NOT_PRESENT = 1,
+   FAULT_MALFORMED = 2,
+   FAULT_VIOLATION = 3,
+};
+
+enum leafPageType {
+  LEAF_4G = 1,
+  LEAF_4M = 2,
+  LEAF_4K = 3,
+};
+
+struct Fault_ {
+  enum fault flt;
+  char *name;
+} Fault[4]  = { {FAULT_NONE, "NONE"}, {FAULT_NOT_PRESENT, "NOT_PRESENT"}, {FAULT_MALFORMED, "MALFORMED" }, {FAULT_VIOLATION, "VIOLATION" } };
+
+#define FOURK (4096)
+#define PRESENT(a) (a & 1)
+#define READ(a) ((a >> 1) & 1)
+#define WRITE(a) ((a >> 2) & 1)
+#define EXEC(a) ((a >> 3) & 1)
+#define LEAF(a) ((a >> 4) & 1)
+
+#define PL2_BASE(a) ((a >> 12) *FOURK)     // pl2 base = upper 20 bits of pl3 *4k (pl3 contains the PPN for pl2 table)
+#define PL2_IDX(l) ((l >> 22) & 0x3FF)   // pl2 index = upper most 10 bits in linear add
+#define PL2_PPN_ADDR(a, l) (PL2_BASE(a) + PL2_IDX(l)*sizeof(uint32_t))        // offset of pl2 entry in pl2 table = pl2 base + pl2 index *8
+#define PL2_PPN(a,l) (readPhys(PL2_PPN_ADDR(a,l)))
+// a = pl3e
+#define PL2E(a, l) (PL2_PPN(a,l) )
+#define PL1_IDX(l) ((l >> 12) & 0x3FF)      // middle 10 bits in the linear addr is the index 
+// a = pl2e = base of PL1 from above
+#define PL1_BASE(a)  ((a >> 12) *FOURK) 
+#define PL1_PPN_ADDR(a, l) (PL1_BASE(a) + PL1_IDX(l) * sizeof(uint32_t))
+#define PL1_PPN(a,l) (readPhys(PL1_PPN_ADDR(a,l))) 
+#define PL1E(a, l) (PL1_PPN(a,l) )
+
+#define INC_NADDRS (32)
+
+typedef struct _physMem {
+  uint32_t addr;
+  uint32_t value;
+} physMem;
+
+physMem *gphysMem = NULL;
+int cur_addrs_max = INC_NADDRS; 
+  
+static 
+uint32_t readPhys(uint32_t physAddr)
+{
+  physMem *ptr = gphysMem;
+  int i = 0;
+  while (i < cur_addrs_max) {
+    if (ptr->addr == physAddr)
+      return ptr->value;
+    ptr++;
+    i++;
+  }
+  printf("readPhys failed at %x\n", physAddr);
+  assert(0);
+}
+
+#if 0
+uint32_t 
+pl2e_func(uint32_t pl3e, uint32_t addr)
+{
+  uint32_t pl2e, pl2_ppn, pl2_idx, pl2_base, pl2_ppn_addr;
+  
+  pl2_base = PL2_BASE(pl3e);
+  pl2_idx = PL2_IDX(addr);
+  pl2_ppn_addr = PL2_PPN_ADDR(pl3e, addr);
+  pl2_ppn = PL2_PPN(pl3e, addr);  
+  pl2e = PL2E(pl3e, addr);
+  printf("pl3 %x pl2_base %x pl2_idx %d pl2_ppn_addr %x pl2_ppn %x pl2e %x \n", pl3e, pl2_base, pl2_idx, pl2_ppn_addr, pl2_ppn, pl2e); 
+  return pl2e;
+}
+#endif
+
+static enum fault
+check_access(uint32_t addr, enum access access)
+{
+  printf("check_access: addr %x access %d \n", addr, access);
+  if (!PRESENT(addr))
+    return FAULT_NOT_PRESENT;
+  switch(access) {
+    case ACCESS_READ:
+      if (!READ(addr))
+        return FAULT_VIOLATION;
+      break;
+    case ACCESS_WRITE:
+      if (!WRITE(addr))
+        return FAULT_VIOLATION;
+      break;
+    case ACCESS_EXECUTE:
+      if (!EXEC(addr))
+        return FAULT_VIOLATION;
+      break;
+    default:
+      printf("illegal access type %d\n", access);
+      assert(0);
+  }
+  return FAULT_NONE;
+}
+
+static enum fault
+check_valid(uint32_t addr, enum leafPageType type)
+{
+  printf("check_valid: addr %x type %d \n", addr, type);
+  switch(type) {
+    case LEAF_4G:
+      if ((addr >> 12) != 0) 
+        return FAULT_MALFORMED;
+      break;
+    case LEAF_4M:
+     if ( ((addr >> 12) & 0x3FF) != 0) 
+        return FAULT_MALFORMED;
+      break;
+    case LEAF_4K:
+     if (!LEAF(addr))  
+        return FAULT_MALFORMED;
+      break;
+    default:
+      printf("illegal leafpage type %d\n", type);
+      assert(0);
+  }    
+  return FAULT_NONE;
+}
+
+
+/*
+ * linearToPhys()
+ *   Traverse the page tables rooted at pl3e for the linearAddr and access type.
+ *   Input:
+ *       pl3e - The contents of the PL3e register.
+ *       linearAddr - The linear address being accessed.
+ *       access - ACCESS_READ, ACCESS_WRITE, or ACCESS_EXECUTE.
+ *   Return:
+ *       FAULT_NONE on success.
+ *       Otherwise FAULT_NOT_PRESENT, FAULT_MALFORMED, or FAULT_VIOLATION.
+ *   Output:
+ *       On success, populate *physAddr.
+ */
+static enum fault
+linearToPhys(uint32_t pl3e, uint32_t linearAddr, enum access access,
+             uint32_t *physAddr /* OUT */)
+{
+   /* !!! PUT YOUR CODE HERE !!! */
+  enum fault flt;
+  uint32_t pl2e, pl1e;
+
+  // printf("linearToPhy: pl3e %x addr %x access %d \n", pl3e, linearAddr, access);
+  if ( (flt = check_access(pl3e, access)) != FAULT_NONE) 
+    return flt;
+  if (LEAF(pl3e)) { // leaf 4G 
+    if ( (flt = check_valid(pl3e, LEAF_4G)) != FAULT_NONE) 
+      return flt;
+    *physAddr = (linearAddr);
+  } else { 
+    // pl2e = phys addr of base of pl1 table
+    pl2e = PL2E(pl3e, linearAddr);
+#if 0
+    pl2e = pl2e_func(pl3e, linearAddr);
+#endif
+    printf("pl2e %x \n", pl2e);
+    if ( (flt = check_access(pl2e, access)) != FAULT_NONE) 
+      return flt;
+    if (LEAF(pl2e)) { // leaf 4MB
+      if ( (flt = check_valid(pl2e, LEAF_4M)) != FAULT_NONE) 
+        return flt;
+      *physAddr = ( ((pl2e >> 22) << 22) | (linearAddr & 0x3FFFFF));
+      return FAULT_NONE;
+    } 
+    // must be a leaf 4K
+     pl1e = PL1E(pl2e, linearAddr);     //  PPN of the 4K page
+     printf("pl1e %x \n", pl1e);
+     if ( (flt = check_access(pl1e, access)) != FAULT_NONE) 
+        return flt;
+     if ( (flt = check_valid(pl1e, LEAF_4K)) != FAULT_NONE) 
+        return flt;
+     *physAddr = ( ((pl1e >> 12) << 12) | (linearAddr & 0xFFF));
+  }
+  return FAULT_NONE;
+
+}
+
+int
+main()
+{
+  char *linep = NULL;
+  size_t linecap = 0;
+  ssize_t  len;
+  char temp[64];
+  uint32_t pl3e, addr, val, phys;
+  enum fault fault;
+
+  int cur_addrs = 0;
+
+  if ( (gphysMem = calloc(cur_addrs_max, sizeof(physMem))) == NULL) {
+    perror("calloc");
+    exit(1);
+  }
+ 
+  while ( (len = getline(&linep, &linecap, stdin)) > 0) {
+    // printf("len %ld %s\n", len, linep);
+    while(isspace(*linep))
+      linep++;
+
+    if (*linep == 0 || *linep == '#')
+        continue;
+  
+    if (strstr(linep, "pl3e")) {
+      sscanf(linep, "%s %x", temp, &pl3e);
+    } else if (strstr(linep, "memory")) {
+      sscanf(linep, "%s %x = %x", temp, &addr, &val);   
+      if (cur_addrs == cur_addrs_max) {
+        cur_addrs_max += INC_NADDRS;
+        if ( (gphysMem = realloc(gphysMem, cur_addrs_max * sizeof(physMem))) == NULL) {
+
+        }
+      }
+        
+      gphysMem[cur_addrs].addr = addr;
+      gphysMem[cur_addrs].value = val;
+      cur_addrs++;
+    } else if (strstr(linep, "read")) {
+      sscanf(linep, "%s %x", temp, &addr);
+      if ( (fault = linearToPhys(pl3e, addr, ACCESS_READ, &phys)) != FAULT_NONE) {
+        printf("read %x -> %s\n", addr, Fault[fault].name);         
+        continue; 
+      }
+      printf("read %x -> %x\n", addr, phys);
+    } else if (strstr(linep, "write")) {
+      sscanf(linep, "%s %x", temp, &addr);
+      if ( (fault = linearToPhys(pl3e, addr, ACCESS_WRITE, &phys)) != FAULT_NONE) {
+        printf("write %x -> %s\n", addr, Fault[fault].name);         
+        continue; 
+      }
+      printf("write %x -> %x\n", addr, phys);
+    } else if (strstr(linep, "execute")) {
+      sscanf(linep, "%s %x", temp, &addr);
+      if ( (fault = linearToPhys(pl3e, addr, ACCESS_EXECUTE, &phys)) != FAULT_NONE) {
+        printf("execute %x -> %s\n", addr, Fault[fault].name);         
+        continue; 
+      }
+      printf("execute %x -> %x\n", addr, phys);
+
+    } else {
+      printf("illegal input %s\n", linep);
+      break;
+    }
+  } // while
+
+}
+

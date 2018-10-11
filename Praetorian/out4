@@ -1,0 +1,115 @@
+{'Auth-Token': '4e6f2b15ab272a095290d59350e5cb0872ac0eb77535e2dd741e1648ef13abc8'}
+{'numGuesses': 18, 'numGladiators': 6, 'numRounds': 1, 'numWeapons': 25}
+Attack attackGuessList =  [12, 2, 8, 14, 6, 24]
+Attack response : {'response': [0, 0]}
+testWeaponsList[0] = [12, 2, 8, 14, 6, 24] gives 0 score. removing ..
+Attack attackGuessList =  [4, 19, 0, 23, 22, 16]
+Attack response : {'response': [4, 0]}
+i = 1 score = 4 max = 4
+Attack attackGuessList =  [11, 9, 17, 3, 21, 13]
+Attack response : {'response': [2, 2]}
+Attack attackGuessList =  [5, 10, 18, 1, 15, 7]
+Attack response : {'response': [0, 0]}
+testWeaponsList[3] = [5, 10, 18, 1, 15, 7] gives 0 score. removing ..
+At start: weaponsGuessList = [4, 19, 0, 23, 22, 16] weaponsPoolList =  [3, 9, 11, 13, 17, 20, 21]
+Attack attackGuessList =  [4, 19, 0, 23, 22, 16]
+Attack response : {'response': [4, 0]}
+
+guess iteration = 0 curXchgIdx = 0 weaponsOkTot = 4 numGladiators = 6 
+weaponsGuessList = [4, 19, 0, 23, 22, 16] weaponsPoolList = [3, 9, 11, 13, 17, 20, 21]
+exchange: 4 <- 3
+Attack attackGuessList =  [3, 19, 0, 23, 22, 16]
+Attack response : {'response': [4, 0]}
+weaponsOkTot (4) == weaponsOkTotOld (4)
+weaponsHitTot (0) == weaponsHitTotOld (0)
+bad <- bad OR good <- good.
+weaponsGuessList = [4, 19, 0, 23, 22, 16]  weaponsPoolList =  [3, 9, 11, 13, 17, 20, 21] 
+
+exchange: 4 <- 9
+Attack attackGuessList =  [9, 19, 0, 23, 22, 16]
+Attack response : {'response': [3, 0]}
+weaponsOkTot (3) < weaponsOkTotOld (4). good <- bad
+weaponsGuessList = [4, 19, 0, 23, 22, 16] weaponsPoolList =  [3, 11, 13, 17, 20, 21]
+adding previous pool items to the good list, before poolIndx = 1
+adding 3 to the goodlist
+
+guess iteration = 1 curXchgIdx = 1 weaponsOkTot = 4 numGladiators = 6 
+weaponsGuessList = [4, 19, 0, 23, 22, 16] weaponsPoolList = [3, 11, 13, 17, 20, 21]
+exchange: 19 <- 3
+Attack attackGuessList =  [4, 3, 0, 23, 22, 16]
+Attack response : {'response': [4, 0]}
+weaponsOkTot (4) == weaponsOkTotOld (4)
+weaponsHitTot (0) == weaponsHitTotOld (0)
+good <- good.
+weaponsGuessList = [4, 19, 0, 23, 22, 16]  weaponsPoolList =  [3, 11, 13, 17, 20, 21] 
+
+
+guess iteration = 2 curXchgIdx = 2 weaponsOkTot = 4 numGladiators = 6 
+weaponsGuessList = [4, 19, 0, 23, 22, 16] weaponsPoolList = [3, 11, 13, 17, 20, 21]
+exchange: 0 <- 3
+Attack attackGuessList =  [4, 19, 3, 23, 22, 16]
+Attack response : {'response': [4, 0]}
+weaponsOkTot (4) == weaponsOkTotOld (4)
+weaponsHitTot (0) == weaponsHitTotOld (0)
+good <- good.
+weaponsGuessList = [4, 19, 0, 23, 22, 16]  weaponsPoolList =  [3, 11, 13, 17, 20, 21] 
+
+
+guess iteration = 3 curXchgIdx = 3 weaponsOkTot = 4 numGladiators = 6 
+weaponsGuessList = [4, 19, 0, 23, 22, 16] weaponsPoolList = [3, 11, 13, 17, 20, 21]
+exchange: 23 <- 3
+Attack attackGuessList =  [4, 19, 0, 3, 22, 16]
+Attack response : {'response': [5, 1]}
+weaponsOkTot (5) > weaponsOkTotOld (4). bad <- good
+weaponsGuessList = [4, 19, 0, 3, 22, 16] weaponsPoolList =  [11, 13, 17, 20, 21]
+
+guess iteration = 4 curXchgIdx = 4 weaponsOkTot = 5 numGladiators = 6 
+weaponsGuessList = [4, 19, 0, 3, 22, 16] weaponsPoolList = [11, 13, 17, 20, 21]
+exchange: 22 <- 11
+Attack attackGuessList =  [4, 19, 0, 3, 11, 16]
+Attack response : {'response': [5, 1]}
+weaponsOkTot (5) == weaponsOkTotOld (5)
+weaponsHitTot (1) == weaponsHitTotOld (1)
+exchange: 11 <- 9 weaponsBadList = [9, 23] to test if good
+Attack attackGuessList =  [4, 19, 0, 3, 9, 16]
+Attack response : {'response': [5, 1]}
+bad <- bad.
+weaponsGuessList = [4, 19, 0, 3, 22, 16]  weaponsPoolList =  [13, 17, 20, 21] 
+
+exchange: 22 <- 13
+Attack attackGuessList =  [4, 19, 0, 3, 13, 16]
+Attack response : {'response': [5, 1]}
+weaponsOkTot (5) == weaponsOkTotOld (5)
+weaponsHitTot (1) == weaponsHitTotOld (1)
+bad <- bad. 22 is already in the bad list weaponsGuessList = [4, 19, 0, 3, 22, 16]  weaponsPoolList =  [17, 20, 21] 
+
+exchange: 22 <- 17
+Attack attackGuessList =  [4, 19, 0, 3, 17, 16]
+Attack response : {'response': [6, 1]}
+weaponsOkTot (6) > weaponsOkTotOld (5). bad <- good
+weaponsGuessList = [4, 19, 0, 3, 17, 16] weaponsPoolList =  [20, 21]
+
+guess iteration = 5 curXchgIdx = 5 weaponsOkTot = 6 numGladiators = 6 
+weaponsGuessList = [4, 19, 0, 3, 17, 16] weaponsPoolList = [20, 21]
+
+Final Before rearranging: weaponsGuessList = [4, 19, 0, 3, 17, 16]  weaponsPoolList =  [20, 21] 
+ weaponsGuessPosList = [0, 0, 0, 1, 0, -1]
+ weaponsBadList = [9, 23, 11, 22, 13, 22, 20, 21]
+ weaponsHitTot  = 1
+
+Attack attackGuessList =  [19, 4, 0, 3, 17, 16]
+Attack response : {'response': [6, 2]}
+rearranger: level = 4 weaponsHitTot = 2 weaponsHitTotOld = 1 weaponsGuessPosList = [0, 0, 0, 1, 0, -1]
+
+Attack attackGuessList =  [9, 4, 0, 3, 17, 16]
+Attack response : {'response': [5, 1]}
+Attack attackGuessList =  [19, 0, 4, 3, 17, 16]
+Attack response : {'response': [6, 2]}
+rearranger: level = 4 weaponsHitTot = 2 weaponsHitTotOld = 2 weaponsGuessPosList = [1, 0, 0, 1, 0, -1]
+
+Attack attackGuessList =  [19, 17, 0, 3, 4, 16]
+Attack response : {'response': [6, 2]}
+rearranger: level = 4 weaponsHitTot = 2 weaponsHitTotOld = 2 weaponsGuessPosList = [1, 0, 0, 1, 0, -1]
+
+Attack attackGuessList =  [19, 16, 0, 3, 17, 4]
+Attack response : {'error': 'Too many guesses. Try again!'}

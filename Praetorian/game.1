@@ -1,0 +1,202 @@
+#!/usr/local/bin/python3
+import requests, json, sys
+global email
+global weaponsPoolGoodList, weaponsBadList  
+
+def SetAuth():
+  global headers
+  r = requests.post('https://mastermind.praetorian.com/api-auth-token/', data={'email':email})
+  print(r.json())
+  # > {'Auth-Token': 'AUTH_TOKEN'}
+  headers = r.json()
+  headers['Content-Type'] = 'application/json'
+
+def SetLevel(level):
+  r = requests.get('https://mastermind.praetorian.com/level/' +str(level) + '/', headers=headers)
+  # > {'numGladiators': 4, 'numGuesses': 8, 'numRounds': 1, 'numWeapons': 6}
+  print(r.json())
+  return r.json()['numGladiators'], r.json()['numWeapons'] 
+
+def Reset():
+  r = requests.post('https://mastermind.praetorian.com/reset/', headers=headers)
+  print(r.json())
+
+
+def Attack(level, attackGuessList):
+  print("attackGuessList = ", attackGuessList)
+  r = requests.post('https://mastermind.praetorian.com/level/' + str(level)+ '/', data=json.dumps({'guess':attackGuessList}), headers=headers)
+  #r.json()
+  # > {'response': [2, 1]}
+  print("Attack response :", r.json())
+  return r.json()['response']
+
+# test if a weapon X is good by replacing it with a known bad one Y. Since we know the #of good ones in the guess list, replacing X
+# with Y could result in -
+# decrease in # good ones - X is good
+# no change - X is bad
+# increase - error 
+#
+def TestIfGood(level, weaponsOkTot, indx, attackGuessList):
+  #check if already in the known good list
+  if attackGuessList[indx] in weaponsPoolGoodList: return 1 
+  #check if already in the known bad list
+  if attackGuessList[indx] in weaponsBadList: return 0 
+  #if the bad list is empty we cant do this check, return -1 to indicate failure
+  if not weaponsBadList: return -1
+  #replace with bad and test
+  attackGuessList[indx] = weaponsBadList[0]  
+  r = Attack(level, attackGuessList)
+  if int(r['response'][0]) < weaponsOkTot:
+    return True
+  elif int(r['response'][0]) == weaponsOkTot:
+    return False
+  else:
+    raise("error: adding bad weapon increased total # of good weapons !")
+
+def MarkPosOldGood(idx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList):
+  if weaponsHitTotOld > weaponsHitTot:
+    weaponsGuessPosList[idx] = 1
+  else:
+    weaponsGuessPosList[idx] = 0
+
+def MarkPosNewGood(idx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList):
+  if weaponsHitTot > weaponsHitTotOld:
+    weaponsGuessPosList[idx] = 1
+  else:
+    weaponsGuessPosList[idx] = 0
+
+
+if __name__ == "__main__":
+  if sys.version_info < (3,0):
+    sys.exit('Python version < 3.0 does not support modern TLS versions. You will have trouble connecting to our API using Python 2.X.')
+  email = 'jai@xyz.com'
+  SetAuth() 
+  Reset()
+  numGladiators, numWeapons =  SetLevel(1)
+  weaponsGuessList = [i for i in range(numGladiators)]    
+  weaponsPoolList = [i for i in range(numGladiators, numWeapons)]    
+  weaponsGuessPosList = numGladiators*[0]
+
+  level = 1
+  print("At start: weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+  r = Attack(level, weaponsGuessList)
+  weaponsOkTot = weaponsOkTotOld = int(r[0])
+  weaponsHitTot = weaponsHitTotOld = int(r[1])
+  #weapons that were identified as bad and removed from the pool, but are kept in this list
+  weaponsBadList = []
+  #weapons still in the pool but were identified as good
+  weaponsPoolGoodList = []
+
+  while True:
+    print("weaponsOkTot =", weaponsOkTot, "numGladiators =", numGladiators) 
+    if weaponsOkTot == numGladiators: break
+    #replace weapons with weapons from the pool and eliminate the one that are not right
+    curXchgIdx = 0
+    for i in weaponsPoolList:
+      save = weaponsGuessList[curXchgIdx]
+      weaponsGuessList[curXchgIdx] = i
+      weaponsOkTot =  weaponsOkTotOld
+      weaponsHitTot = weaponsHitTotOld
+      #attack 
+      r = Attack(level, weaponsGuessList)
+      weaponsOkTot = int(r[0])
+      weaponsHitTot = int(r[1])
+      #check results
+      if weaponsOkTot < weaponsOkTotOld: 
+        print("weaponsOkTot < weaponsOkTotOld",  weaponsOkTot, weaponsOkTotOld)
+        #we replaced a good weapon with a bad, put the good one back, remove bad one from pool and advance
+        weaponsGuessList[curXchgIdx] = save     
+        weaponsBadList.append(i) 
+        weaponsPoolList.remove(i)
+        #since the old weapon is good, replacing it with bad should have decreased the total correct posns, if the old posn was right
+        MarkPosOldGood(curXchgIdx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList):
+
+        print("weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+        curXchgIdx += 1
+        break
+      elif weaponsOkTot > weaponsOkTotOld:  
+        print("weaponsOkTot > weaponsOkTotOld",  weaponsOkTot, weaponsOkTotOld)
+        # we replaced a bad weapon with a good one, keep new one and remove it from the pool
+        weaponsBadList.append(save) 
+        weaponsPoolList.remove(i)
+        MarkPosNewGood(curXchgIdx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList):
+        print("weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+        curXchgIdx += 1
+        break
+      else: 
+        # we replaced a good weapon with a good or bad with bad
+        # special cases - 
+        # 1. All weapons in the guess list are bad - so we replaced bad with bad. remove from pool. continue to search the pool for another replacement
+        # 2. no of remaining bad weapons in the guess list == total no in the pool -> all weapons in the pool are good. so we replaced good with good.
+        # keep the old good weapon and advance guess list
+        #
+        # other cases - 
+        # if there are any known bad weapons, replace with one of them to see if this is good
+        # 
+        print("weaponsOkTot == weaponsOkTotOld",  weaponsOkTot, weaponsOkTotOld)
+        # 1.
+        if (weaponsOkTot == 0):
+          weaponsBadList.append(i) 
+          weaponsPoolList.remove(i)
+          print("all bad in guess list. weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+        elif (weaponsOkTot - numGladiators) == len(weaponsPoolList):
+          # 2.
+          weaponsGuessList[curXchgIdx] = save     
+          weaponsPoolGoodList.append(i) 
+          curXchgIdx += 1
+          print("all in pool good. weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+          break
+        else:
+          # even if the total score may not change, the pos score must necessarily increase or decrease if we replace good with good.
+
+          #ret = TestIfGood(level, weaponsOkTot, curXchgIdx, weaponsGuessList[:])
+          # good was replaced with good. check posn score.
+          if ret == 1:
+            print("tested as known good :", weaponsGuessList[curXchgIdx], "weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+            #both are good, keep the one which results in a better posn score
+            if weaponsHitTot > weaponsHitTotOld:
+              #keep new, put other good in pool and good list
+              weaponsGuessList[curXchgIdx] = i     
+              weaponsPoolGoodList.append(save) 
+              weaponsPoolList.append(save) 
+              weaponsGuessPosList[curXchgIdx] = 1
+              print("keeping new for better posn score", weaponsGuessList[curXchgIdx], "weaponsHitTotOld (old posn score)=", weaponsHitTot,  
+              "weaponsHitTot (new pos score)=", weaponsHitTot,  
+              "weaponsGuessList =",  weaponsGuessList, 
+              "weaponsPoolList = ", weaponsPoolList)   
+            #keep old if old posn score is better - this also means the old posn is right
+            elif weaponsHitTot < weaponsHitTotOld:
+              weaponsGuessList[curXchgIdx] = save     
+              weaponsPoolGoodList.append(i) 
+              weaponsGuessPosList[curXchgIdx] = 1
+              print("keeping old for better posn score", weaponsGuessList[curXchgIdx], "weaponsHitTotOld (old posn score)=", weaponsHitTot,  
+              "weaponsHitTot (new pos score)=", weaponsHitTot,  
+              "weaponsGuessList =", weaponsGuessList, 
+              "weaponsPoolList = ", weaponsPoolList)   
+            else:
+              #no change - keep old, but we now know the old position is wrong
+              weaponsGuessList[curXchgIdx] = save     
+              weaponsPoolGoodList.append(i) 
+              weaponsGuessPosList[curXchgIdx] = 0
+              print("no change in posn score", weaponsGuessList[curXchgIdx], "weaponsHitTotOld (old posn score)=", weaponsHitTot,  
+              "weaponsHitTot (new pos score)=", weaponsHitTot,  
+              "weaponsGuessList =", weaponsGuessList, 
+              "weaponsPoolList = ", weaponsPoolList)   
+
+
+            curXchgIdx += 1
+            break
+          elif ret == 0:
+            #bad was replaced with bad. need to replace with good. don't advance guess list.
+            weaponsBadList.append(i) 
+            weaponsPoolList.remove(i)
+            print("tested as bad :", weaponsGuessList[curXchgIdx], "weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+          else:
+            #couldn't tell. dont advance guess list.
+            weaponsGuessList[curXchgIdx] = save     
+            print("couldnt test :", weaponsGuessList[curXchgIdx], "weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+              
+              
+  print("Final: weaponsGuessList = ", weaponsGuessList)
+  r = Attack(level, weaponsGuessList)
+  print("level = %d final response =" %(level), r)

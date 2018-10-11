@@ -1,0 +1,15 @@
+# successful 4KiB translations
+pl3e 0000500f
+memory 0000500c = 0000600f
+memory 00006008 = 7777701f
+memory 00006010 = 8888801f
+memory 00006018 = 9999901f
+#
+# pl2 index 3, pl1 index 2, offset 1 -> 77777001
+read 00c02001
+#
+# pl2 index 3, pl1 index 4, offset 5 -> 88888005
+write 00c04005
+#
+# pl2 index 3, pl1 index 6, offset 9 -> 99999009
+execute 00c06009

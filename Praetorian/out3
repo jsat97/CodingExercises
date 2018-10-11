@@ -1,0 +1,30 @@
+{'Auth-Token': '4e6f2b15ab272a095290d59350e5cb0872ac0eb77535e2dd741e1648ef13abc8'}
+{'numGuesses': 6, 'numGladiators': 4, 'numWeapons': 6, 'numRounds': 1}
+At start: weaponsGuessList = [0, 1, 2, 3] weaponsPoolList =  [4, 5]
+attackGuessList =  [0, 1, 2, 3]
+Attack response : {'response': [2, 2]}
+weaponsOkTot = 2 numGladiators = 4
+attackGuessList =  [4, 1, 2, 3]
+Attack response : {'response': [3, 3]}
+weaponsOkTot (3) > weaponsOkTotOld (2)
+weaponsGuessList = [4, 1, 2, 3] weaponsPoolList =  [5]
+weaponsOkTot = 3 numGladiators = 4
+attackGuessList =  [4, 5, 2, 3]
+Attack response : {'response': [3, 2]}
+weaponsOkTot (3) == weaponsOkTotOld (3)
+good <- good. keeping old for better posn score
+ current =  1 weaponsHitTotOld = 3  weaponsHitTot = 3 
+ weaponsGuessList = [4, 1, 2, 3]  weaponsPoolList = [5] 
+
+weaponsOkTot = 3 numGladiators = 4
+attackGuessList =  [4, 1, 5, 3]
+Attack response : {'response': [3, 2]}
+weaponsOkTot (3) == weaponsOkTotOld (3)
+good <- good. keeping old for better posn score
+ current =  2 weaponsHitTotOld = 3  weaponsHitTot = 3 
+ weaponsGuessList = [4, 1, 2, 3]  weaponsPoolList = [5] 
+
+weaponsOkTot = 3 numGladiators = 4
+attackGuessList =  [4, 1, 2, 5]
+Attack response : {'message': 'Onto the next level'}
+level 3 complete. returning

@@ -1,0 +1,66 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define MAX_MATCHES 100
+#define AVERAGE (5.0)
+
+
+int main(int argc, char*argv[])
+{
+	char **players, *p, *p1;
+	int sum, i,j, no_players, count =0;
+	float average;
+
+
+	no_players = atoi(argv[1]);
+	//printf("no_players %d\n",no_players );
+	
+	if (argc < 3) {
+		if (!no_players) {
+			printf("count %d\n", 0);
+			exit(0);
+		} else {
+			printf("input error \n");
+		}
+	}
+	if ( (players =  (char **) malloc(no_players *sizeof(char*))) == NULL) {
+		perror("malloc -1");
+		exit(2);
+	}
+	//p = argv[2];
+	//p++;
+
+	for (i=0; i< no_players; i++) {
+		if ( (players[i] = malloc (MAX_MATCHES *sizeof(char))) == NULL) {
+			perror("malloc -2");
+			exit(2);
+		}
+#if 0
+		if (i)
+			p1 = strtok(NULL, ",");
+		else 
+			p1 = strtok(p, ",");
+#else
+			p1 = argv[i+2];
+#endif
+		strcpy(players[i], p1);
+#if 0
+		if (i == (no_players -1)) {
+			p1 = strchr(players[i], '}');
+			*p1 =0;
+			//printf("%d last player %s\n",no_players, players[no_players-1]);
+		}
+#endif
+		//printf("%d player %s\n",i, players[i]);
+		sum = 0;
+		for (j=0; j< strlen(players[i]); j++) {
+			sum += players[i][j] - '0';
+		}
+		average = sum/(float)(j);
+		//printf("%d sum %d matches %d aver %f\n",i, sum, j, average);
+		if (average >= AVERAGE) count++;
+	}
+	printf("count %d\n", count);
+	
+}

@@ -1,0 +1,48 @@
+{'Auth-Token': '4e6f2b15ab272a095290d59350e5cb0872ac0eb77535e2dd741e1648ef13abc8'}
+{'message': 'User reset'}
+{'numGladiators': 4, 'numWeapons': 6, 'numGuesses': 8, 'numRounds': 1}
+At start: weaponsGuessList = [0, 1, 2, 3] weaponsPoolList =  [4, 5]
+attackGuessList =  [0, 1, 2, 3]
+Attack response : {'response': [2, 0]}
+weaponsOkTot = 2 numGladiators = 4
+attackGuessList =  [4, 1, 2, 3]
+Attack response : {'response': [2, 0]}
+weaponsOkTot (2) == weaponsOkTotOld (2)
+bad <- bad OR good <- good.
+current =  0 weaponsHitTotOld = 0  weaponsHitTot = 0
+ weaponsGuessList = [0, 1, 2, 3]  weaponsPoolList =  [4, 5] 
+
+attackGuessList =  [5, 1, 2, 3]
+Attack response : {'response': [2, 1]}
+weaponsOkTot (2) == weaponsOkTotOld (2)
+good <- good. keeping new for better posn score
+ current =  5 weaponsHitTotOld (old posn score)= 1  weaponsHitTot (new pos score)= 1 
+ weaponsGuessList = [5, 1, 2, 3]  weaponsPoolList =  [4, 0] 
+
+weaponsOkTot = 2 numGladiators = 4
+attackGuessList =  [5, 4, 2, 3]
+Attack response : {'response': [3, 1]}
+weaponsOkTot (3) > weaponsOkTotOld (2)
+weaponsGuessList = [5, 4, 2, 3] weaponsPoolList =  [0]
+weaponsOkTot = 3 numGladiators = 4
+attackGuessList =  [5, 4, 0, 3]
+Attack response : {'response': [4, 1]}
+weaponsOkTot (4) > weaponsOkTotOld (3)
+weaponsGuessList = [5, 4, 0, 3] weaponsPoolList =  []
+weaponsOkTot = 4 numGladiators = 4
+
+Final Before rearranging: weaponsGuessList = [5, 4, 0, 3]  weaponsPoolList =  [] 
+ weaponsGuessPosList = [1, 0, 0, -1]
+ weaponsBadList = [1, 2]
+ weaponsHitTot  = 1
+
+attackGuessList =  [5, 0, 4, 3]
+Attack response : {'response': [4, 2]}
+rearranger: level = 1 weaponsHitTot = 2 weaponsHitTotOld = 1 weaponsGuessPosList = [1, 0, 0, -1]
+
+attackGuessList =  [5, 1, 4, 3]
+Attack response : {'response': [3, 1]}
+attackGuessList =  [5, 0, 3, 4]
+Attack response : {'message': 'Onto the next level'}
+Got next level message 
+ **level 1 done**

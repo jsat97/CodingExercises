@@ -1,0 +1,580 @@
+#!/usr/local/bin/python3
+import requests, json, sys
+import random
+
+def SetAuth():
+  global headers
+  r = requests.post('https://mastermind.praetorian.com/api-auth-token/', data={'email':email})
+  rJson = r.json()
+  print(rJson)
+  # > {'Auth-Token': 'AUTH_TOKEN'}
+  headers = rJson
+  headers['Content-Type'] = 'application/json'
+
+def SetLevel(level):
+  r = requests.get('https://mastermind.praetorian.com/level/' +str(level) + '/', headers=headers)
+  # > {'numGladiators': 4, 'numGuesses': 8, 'numRounds': 1, 'numWeapons': 6}
+  rJson = r.json()
+  print(rJson)
+  return rJson['numGladiators'], rJson['numWeapons'], rJson['numRounds']  
+
+def Reset():
+  r = requests.post('https://mastermind.praetorian.com/reset/', headers=headers)
+  print(r.json())
+
+def GetHash():
+  r = requests.post('https://mastermind.praetorian.com/hash/', headers=headers)
+  rJson = r.json()
+  print(rJson)
+  return rJson['hash']
+
+def Attack(level, attackGuessList):
+  print("Attack attackGuessList = ", attackGuessList)
+  r = requests.post('https://mastermind.praetorian.com/level/' + str(level)+ '/', data=json.dumps({'guess':attackGuessList}), headers=headers)
+  rJson = r.json()
+  # > {'response': [2, 1]}
+  print("Attack response :", rJson)
+  if 'error' in rJson.keys():
+    sys.exit("error during attack")
+
+  resp=[]
+  if 'response' in rJson.keys():
+    resp = rJson['response']
+  msg=""
+  ret = 0
+  if 'message' in rJson.keys():
+    msg = rJson['message']
+    if msg == "Onto the next level":
+      ret = -1
+
+  return resp, msg, ret
+
+# test if a weapon X is good by replacing it with a known bad one Y. Since we know the #of good ones in the guess list, replacing X
+# with Y should result in -
+# decrease in # good ones - X is good
+# no change - X is bad
+# increase - error 
+#
+def TestIfGood(level, weaponsOkTot, indx, attackGuessList):
+  #check if already in the known good list
+  if attackGuessList[indx] in weaponsPoolGoodList: return 1 
+  #check if already in the known bad list
+  if attackGuessList[indx] in weaponsBadList: return 0 
+  #if the bad list is empty we cant do this check, return -1 to indicate failure
+  if not weaponsBadList: return -1
+  #replace with bad and test
+  print("exchange: %d <- %d weaponsBadList = %s to test if good" %(attackGuessList[indx],  weaponsBadList[0], weaponsBadList))
+  attackGuessList[indx] = weaponsBadList[0]  
+  r, msg, ret = Attack(level, attackGuessList)
+  if ret == -1: return ret 
+  if int(r[0]) < weaponsOkTot:
+    return 1
+  elif int(r[0]) == weaponsOkTot:
+    return 0
+  else:
+    assert(False), "adding bad weapon increased total # of good weapons !"
+
+
+
+# test if a good weapon X is in the right pos  by replacing it with a known bad one Y. replacing X
+# with Y should result in a total score less by 1. posn score should remain same or decrease
+# 
+# posn score less by 1 - X is in right posn
+# no change - X is in wrong posn
+# increase - error 
+#
+def TestIfPosGood(level, weaponsHitTot, indx, attackGuessList):
+  assert(len(weaponsBadList) != 0), "no known bad weapons to check posn of good"
+  #replace with bad and test
+  attackGuessList[indx] = weaponsBadList[0]  
+  r, msg, ret = Attack(level, attackGuessList)
+  if ret == -1: return ret 
+
+  if int(r[1]) < weaponsHitTot:
+    return 1
+  elif int(r[1]) == weaponsHitTot:
+    return 0
+  else:
+    assert(False), "posn score increased after replacing good with bad"
+
+def MarkPosOldGood(idx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList):
+  if weaponsHitTotOld > weaponsHitTot:
+    weaponsGuessPosList[idx] = 1
+  else:
+    weaponsGuessPosList[idx] = 0
+
+def MarkPosNewGood(idx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList):
+  if weaponsHitTot > weaponsHitTotOld:
+    weaponsGuessPosList[idx] = 1
+  else:
+    weaponsGuessPosList[idx] = 0
+
+def Game(level, numGladiators, weaponsGuessList, weaponsPoolList, weaponsGuessPosList):
+  global weaponsPoolGoodList, weaponsBadList  
+
+  print("At start: weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+  r, msg, ret = Attack(level, weaponsGuessList)
+  if ret == -1:
+    print("level %d complete. returning" %(level))
+    return
+
+  weaponsOkTot = weaponsOkTotOld = int(r[0])
+  weaponsHitTot = weaponsHitTotOld = int(r[1])
+  #weapons that were identified as bad and removed from the pool, but are kept in this list
+  weaponsBadList = []
+  #weapons still in the pool but were identified as good
+  weaponsPoolGoodList = []
+
+  curXchgIdx = 0
+  loopCount = 0
+  while True:
+    print("\nguess iteration = %d curXchgIdx = %d weaponsOkTot = %d numGladiators = %d \n" 
+     "weaponsGuessList = %s weaponsPoolList = %s"
+    %(loopCount, curXchgIdx, weaponsOkTot, numGladiators, weaponsGuessList, weaponsPoolList))
+    # sometimes the index is ahead because decision was made based on an exchange - but no attack was made after that to up the total score
+    if weaponsOkTot == numGladiators or curXchgIdx == numGladiators:
+      # add all in the pool to the bad list - if we haven't already
+      weaponsBadList += weaponsPoolList
+      break
+    # if current guess is good (0 - bad pos, 1 - good posn, -1 -not good), continue
+    # used to indicate that a decision was made about the current guess item 
+    done = False
+    #weaponOrigGuess =  weaponsGuessList[curXchgIdx]
+    #replace weapons with weapons from the pool and eliminate the one that are not right
+    poolIndx = 0
+    cleanPrevPoolFlag = False
+    goodPrevPoolFlag = False
+    #
+    # if >= x% of remaining guesses are bad, replace them all from the pool
+    """
+    guessRemFrac = (numGladiators-curXchgIdx)/numGladiators 
+    if (weaponsOkTot == curXchgIdx and guessRemFrac >= 0.5):
+      print("remaining weapons in list bad (>= 0.5 of the guess list)\n",
+      "weaponsOkTot = %d curXchgIdx = %d guessRemFrac = %f" %(weaponsOkTot, curXchgIdx, guessRemFrac) )
+      weaponsGuessListOrig = weaponsGuessList[:]
+      weaponsPoolListOrig = weaponsPoolList[:]
+      weaponsGuessSet = set(weaponsGuessList)
+      weaponsPoolSet = set(weaponsPoolList)
+      # to remove from the guess list
+      weaponsToRemoveSet = set(weaponsGuessList[curXchgIdx:])  
+      nWeaponsToAdd = len(weaponsToRemoveSet) 
+      if len(weaponsPoolList) >= nWeaponsToAdd: 
+        weaponsToAddSet = set(weaponsPoolList[:nWeaponsToAdd])    #set of weapons from pool to add to guest
+        weaponsGuessSet.difference_update(weaponsToRemoveSet)     #remove remaining from guest list
+        weaponsGuessSet.update(weaponsToAddSet)                   #add to guest from pool
+        weaponsPoolSet.difference_update(weaponsToAddSet)         #remove from pool
+        weaponsGuessList = list(weaponsGuessSet)    
+        weaponsPoolList = list(weaponsPoolSet)
+        r, msg, ret  = Attack(level, weaponsGuessList)
+        if ret == -1:
+          print("level %d complete. returning" %(level))
+          return
+        weaponsOkTot = int(r[0])
+        weaponsHitTot = int(r[1])
+        print("replaced %s in guess list with %s from pool" %(weaponsGuessListOrig[curXchgIdx:], weaponsPoolListOrig[:nWeaponsToAdd]),  
+        "New weaponsGuessList = %s weaponsPoolList = %s weaponsOkTot = %d weaponsHitTot = %d" 
+        %(weaponsGuessList, weaponsPoolList, weaponsOkTot, weaponsHitTot))  
+    """
+    #
+    #
+    while poolIndx < len(weaponsPoolList):
+      i = weaponsPoolList[poolIndx]
+      save = weaponsGuessList[curXchgIdx]
+      print("exchange: %d <- %d" %(save, i))
+      weaponsGuessList[curXchgIdx] = i
+      weaponsOkTotOld = weaponsOkTot
+      weaponsHitTotOld = weaponsHitTot
+      #attack 
+      r, msg, ret  = Attack(level, weaponsGuessList)
+      if ret == -1:
+        print("level %d complete. returning" %(level))
+        return
+
+      weaponsOkTot = int(r[0])
+      weaponsHitTot = int(r[1])
+      #check results
+      if weaponsOkTot < weaponsOkTotOld: 
+        #we replaced a good weapon with a bad, put the good one back, remove bad one from pool and advance
+        #
+        print("weaponsOkTot (%d) < weaponsOkTotOld (%d). good <- bad"  %(weaponsOkTot, weaponsOkTotOld))
+        weaponsGuessList[curXchgIdx] = save     
+        weaponsBadList.append(i) 
+        weaponsPoolList.remove(i)
+        # since the old weapon is good, replacing it with bad should have decreased the total correct posns if the old posn was right, and should have 
+        # left it unchanged otherwise
+        MarkPosOldGood(curXchgIdx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList)
+        #result should reflect that of the guess list, so if we put pack old guess, use result for that
+        weaponsOkTot =  weaponsOkTotOld
+        weaponsHitTot = weaponsHitTotOld 
+
+        print("weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+        curXchgIdx += 1
+        done = True
+        goodPrevPoolFlag = True    #current is good. if we've tried from the pool without removing them, they must also be good.
+        break
+      elif weaponsOkTot > weaponsOkTotOld:  
+        # we replaced a bad weapon with a good one, keep new one and remove it from the pool
+        #
+        print("weaponsOkTot (%d) > weaponsOkTotOld (%d). bad <- good"  %(weaponsOkTot, weaponsOkTotOld))
+
+        weaponsBadList.append(save) 
+        weaponsPoolList.remove(i)
+        MarkPosNewGood(curXchgIdx, weaponsHitTot, weaponsHitTotOld, weaponsGuessPosList)
+        print("weaponsGuessList =",  weaponsGuessList, "weaponsPoolList = ", weaponsPoolList)   
+        curXchgIdx += 1
+        done = True
+        cleanPrevPoolFlag = True    #current is bad. if we've tried from the pool without removing them, they must also be bad.
+        break
+      else: 
+        # we replaced a good weapon with a good or bad with bad
+        print("weaponsOkTot (%d) == weaponsOkTotOld (%d)"  %(weaponsOkTot, weaponsOkTotOld))
+
+        # even if the total score does not change, if the pos score changes, it means  we replaced good with good.
+        # if the pos score doesnt change, it could be either -we replaced good with good (can only happen if both good are in wrong positions) 
+        # or bad with bad
+
+        if weaponsHitTot > weaponsHitTotOld:
+          #both are good, keep the one which results in a better posn score
+          # keep new, put other good in pool and good list
+          weaponsGuessList[curXchgIdx] = i     
+          weaponsPoolList.remove(i)
+          weaponsPoolGoodList.append(save) 
+          weaponsPoolList.append(save) 
+          weaponsGuessPosList[curXchgIdx] = 1
+          print("weaponsHitTot (%d) > weaponsHitTotOld (%d)"  %(weaponsHitTot, weaponsHitTotOld))
+          print("good <- good. keeping new for better posn score\n",
+          "current = ", weaponsGuessList[curXchgIdx], 
+          "weaponsGuessList = %s "  %(weaponsGuessList), 
+          "weaponsPoolList =  %s \n" %(weaponsPoolList))   
+          curXchgIdx += 1
+          done = True
+          break
+        elif weaponsHitTot < weaponsHitTotOld:
+          # both are good. keep old if old posn score is better - this also means the old posn is right
+          weaponsGuessList[curXchgIdx] = save     
+          weaponsPoolGoodList.append(i) 
+          weaponsGuessPosList[curXchgIdx] = 1
+          #result should reflect that of the guess list, so if we put pack old guess, use result for that
+          weaponsOkTot =  weaponsOkTotOld
+          weaponsHitTot = weaponsHitTotOld 
+
+          print("weaponsHitTot (%d) < weaponsHitTotOld (%d)"  %(weaponsHitTot, weaponsHitTotOld))
+          print("good <- good. keeping old for better posn score\n", 
+          "current = ", weaponsGuessList[curXchgIdx], 
+          "weaponsGuessList = %s " %(weaponsGuessList), 
+          "weaponsPoolList = %s \n" %(weaponsPoolList) )  
+          done = True
+          curXchgIdx += 1
+          break
+        else:
+          print("weaponsHitTot (%d) == weaponsHitTotOld (%d)"  %(weaponsHitTot, weaponsHitTotOld))
+          #
+          # we cant decide here unless we know that atleast one is good or bad. we could use our list for good and bad, but what if its
+          # the first weapon in the guess list ?
+          # one way would be -
+          # dont change the current
+          # leave the replacement in the pool.
+          # we continue to scan the pool for another replacement
+          # if both are good, we may not find another replacement, unless we find another good with a better posn score. In this case, we must infer that
+          # the one we kept was good
+          # if both are bad, we should find a replacement from the pool as we look at others.
+
+          # special cases where we can tell
+          if (weaponsOkTot == curXchgIdx):
+            # 1. all remaining (to be checked) in the guest list are bad because the index indicates the ones we have checked so far, and if these are
+            # the only ones that are good, the remaining are necessarily bad
+            weaponsGuessList[curXchgIdx] = save     
+            weaponsBadList.append(i) 
+            weaponsPoolList.remove(i)
+            print("all bad in guess list, so this is bad <- bad\n", 
+            "weaponsOkTot = %d curXchgIdx = %d \nweaponsGuessList = %s weaponsPoolList = %s\n" 
+            %(weaponsOkTot, curXchgIdx , weaponsGuessList, weaponsPoolList))   
+          elif (weaponsOkTot - numGladiators) == len(weaponsPoolList):
+            # 2. All remaining in the pool are good
+            weaponsGuessList[curXchgIdx] = save     
+            weaponsGuessPosList[curXchgIdx] = 0         # both old and new are in the wrong position
+            weaponsPoolGoodList.append(i) 
+            print("all in pool good, so this is good <- good\n",
+            "weaponsGuessList = %s "  %(weaponsGuessList), "weaponsPoolList = %s", weaponsPoolList)   
+            done = True
+            curXchgIdx += 1
+            break
+          else:
+            # see if we can tell if the new value  is good or bad by replacing it with a known bad
+            if weaponsBadList:
+              # if the current one (before replacement) is a known bad based on a previous check, we know its a case of bad <- bad
+              if save in weaponsBadList:
+                weaponsGuessList[curXchgIdx] = save     
+                weaponsBadList.append(i) 
+                weaponsPoolList.remove(i) 
+                print("bad <- bad. %d is already in the bad list" %(save),
+                  "weaponsGuessList = %s " %(weaponsGuessList), 
+                  "weaponsPoolList =  %s \n" %(weaponsPoolList))   
+              else:
+                # send in the new value and score corresponding to that 
+                ret = TestIfGood(level, weaponsOkTot, curXchgIdx, weaponsGuessList[:])
+                if ret == -1:
+                  print("Got next level message \n **level %d done**" %(level))
+                  return
+                elif ret == 1:        #new value is good
+                  weaponsGuessList[curXchgIdx] = save     
+                  weaponsPoolGoodList.append(i) 
+                  #weaponsOkTot = weaponsOkTotOld
+                  #weaponsHitTot = weaponsHitTotOld 
+                  weaponsGuessPosList[curXchgIdx] = 0 
+                  curXchgIdx += 1
+                  print("good <- good.\n" 
+                  "weaponsGuessList = %s " %(weaponsGuessList), 
+                  "weaponsPoolList =  %s \n" %(weaponsPoolList))   
+                  # If we traversed the pool without removing the lead pool element, we now know that those were good
+                  goodPrevPoolFlag = True
+                  break
+                elif ret == 0:        #new value is bad
+                  weaponsGuessList[curXchgIdx] = save     
+                  weaponsBadList.append(i) 
+                  weaponsBadList.append(save)   
+                  weaponsPoolList.remove(i) 
+                  #weaponsOkTot = weaponsOkTotOld
+                  #weaponsHitTot = weaponsHitTotOld 
+                  weaponsGuessPosList[curXchgIdx] = 0 
+                  # This also means the current guess is bad. If we have traversed the pool to find an element to determine this, the 
+                  # previous elements in the pool are bad. flag this.
+                  cleanPrevPoolFlag = True
+                  print("bad <- bad.\n" 
+                  "weaponsGuessList = %s " %(weaponsGuessList), 
+                  "weaponsPoolList =  %s \n" %(weaponsPoolList))   
+
+            else:   #bad list is empty
+              # we dont replace current or remove anything from the pool because we dont know if it is bad, so we cant have this in the guess list.
+              weaponsGuessList[curXchgIdx] = save     
+              #result should reflect that of the guess list, so if we put pack old guess, use result for that
+              #weaponsOkTot =  weaponsOkTotOld
+              #weaponsHitTot = weaponsHitTotOld 
+              # mark posn as bad for now. if its a good <- good case, this is right. For bad <- bad, it will get changed when replaced with a good
+              weaponsGuessPosList[curXchgIdx] = 0 
+              print("bad <- bad OR good <- good.\n" 
+              "weaponsGuessList = %s " %(weaponsGuessList), 
+              "weaponsPoolList =  %s \n" %(weaponsPoolList))   
+              poolIndx += 1   # only case where we need to advance the pool, because we dont remove a guess from it
+
+            # begin new algo
+            """ 
+            # change algo to move guess to end of list
+            # move current to end of list instead of trying to find a replacement, refresh the scores by a new attack because we will compare
+            # with this in the next iteration
+            weaponsGuessList[curXchgIdx] = save     
+            weaponsGuessList.remove(save)
+            weaponsGuessList.append(save)
+            r, msg, ret  = Attack(level, weaponsGuessList)
+            if ret == -1:
+              print("level %d complete. returning" %(level))
+              return
+            weaponsOkTot = int(r[0])
+            weaponsHitTot = int(r[1])
+            #
+            print("bad <- bad OR good <- good.\n" 
+            "moved (%d) to end of list and made a fresh attack\n" %(save),
+            "weaponsHitTotOld = %d " %(weaponsHitTotOld),  
+            "weaponsHitTot = %d\n" %(weaponsHitTot),  
+            "weaponsGuessList = %s " %(weaponsGuessList), 
+            "weaponsPoolList =  %s \n" %(weaponsPoolList))   
+            break #new algo - this is a new element because the list is shifted left
+            #end new algo
+            """                    
+    # end for
+    # check if we decided anything. This should happen only for the good <- good case. replace current with original guess
+    # if done is False because that would mean a good <- good case which we couldn't decide
+    #assert(done), "done == False. bad <- bad not replaced with good ?"
+    #if not done:
+      #print("done == False\n",
+      #"replacing current %d with original %d " %(weaponsGuessList[curXchgIdx], weaponOrigGuess)) 
+      #weaponsGuessList[curXchgIdx] = weaponOrigGuess     
+    loopCount += 1
+    # we only increment the poolIndx when we traverse weaponsPoolList without removing the leading element. This happens only when we're not
+    # sure if its a bad <- bad or a good <- good case.  When an element is finally found in the pool that can settle this, we can decide whether
+    # the other trials before this in the pool were good or bad. If they were bad, they need to be removed.
+    if poolIndx:
+      if cleanPrevPoolFlag:
+        print("cleaning previous pool items, before poolIndx =", poolIndx)
+        for k in  weaponsPoolList[:poolIndx].__reversed__():
+          print("removing", k)
+          weaponsPoolList.remove(k) 
+      elif goodPrevPoolFlag:
+        print("adding previous pool items to the good list, before poolIndx =", poolIndx)
+        for k in  weaponsPoolList[:poolIndx].__reversed__():
+          print("adding %d to the goodlist" %(k))
+          weaponsPoolGoodList.append(k) 
+        
+      
+  # end while
+  print("\nFinal Before rearranging: weaponsGuessList = %s " %(weaponsGuessList), 
+  "weaponsPoolList =  %s \n" %(weaponsPoolList),
+  "weaponsGuessPosList = %s\n" %(weaponsGuessPosList),
+  "weaponsBadList = %s\n" %(weaponsBadList),
+  "weaponsHitTot  = %d\n" %(weaponsHitTot)) 
+
+
+  # Now we need to get them all in right positions. we may already have some info about this-
+  # weaponsGuessPosList == 1 for a given weapon, its already at the right position.
+  # 0  -- wrong position
+  # -1 -- dont know
+
+  if (weaponsHitTot == numGladiators):
+    print("weaponsHitTot (%d)  == numGladiators (%d)\n **level %d done**" %(weaponsHitTot, numGladiators,level))
+    return
+
+  # Known good positions
+  goodPosnIdxList = [i for i,v in enumerate(weaponsGuessPosList) if v == 1]
+
+  for i in range(numGladiators):
+    if weaponsGuessPosList[i] == 1: continue
+    for j in range(i+1, numGladiators):
+      if weaponsGuessPosList[j] == 1: continue
+      weaponsHitTotOld = weaponsHitTot
+      # swap these two in the guess list
+      weaponsGuessList[i],  weaponsGuessList[j] = weaponsGuessList[j], weaponsGuessList[i]  
+      r, msg, ret  = Attack(level, weaponsGuessList)
+      if ret == -1:
+        print("Got next level message \n **level %d done**" %(level))
+        return
+      weaponsHitTot = int(r[1])
+
+      print("rearranger: level = %d weaponsHitTot = %d weaponsHitTotOld = %d" %(level, weaponsHitTot, weaponsHitTotOld),  
+      "weaponsGuessPosList = %s\n" %(weaponsGuessPosList))
+
+      # both positions are right after swap, were wrong before - pos score increased by 2
+      if weaponsHitTot - weaponsHitTotOld == 2: 
+        weaponsGuessPosList[i] = weaponsGuessPosList[j] = 1
+        break
+      # both positions are wrong after swap, were right before - pos score decreased by 2
+      elif weaponsHitTot - weaponsHitTotOld == -2: 
+        weaponsGuessPosList[i] = weaponsGuessPosList[j] = 1
+        # undo swap
+        weaponsGuessList[i],  weaponsGuessList[j] = weaponsGuessList[j], weaponsGuessList[i]  
+        weaponsHitTot = weaponsHitTotOld
+        break
+      # increase or decrease by 1 - one of them was in a right posn before the move, we dont know which
+      elif (weaponsHitTot - weaponsHitTotOld) == 1: 
+        # new posn is right for one (was wrong before) and the  other is from wrong -> wrong posn
+        ret = TestIfPosGood(level, weaponsHitTot, i, weaponsGuessList[:])
+        if ret == -1:
+          print("Got next level message \n **level %d done**" %(level))
+          return
+        elif ret == 1:
+          weaponsGuessPosList[i] = 1
+          weaponsGuessPosList[j] = 0
+        else:
+          weaponsGuessPosList[j] = 1
+          weaponsGuessPosList[i] = 0
+        break
+      elif (weaponsHitTot - weaponsHitTotOld) == -1: 
+        # new posn is wrong for one(was right before), other is move from wrong -> wrong posn
+        # undo swap and check for the right one
+        weaponsGuessList[i],  weaponsGuessList[j] = weaponsGuessList[j], weaponsGuessList[i]  
+        weaponsHitTot = weaponsHitTotOld
+        ret = TestIfPosGood(level, weaponsHitTot, i, weaponsGuessList[:])
+        if ret == -1:
+          print("Got next level message \n **level %d done**" %(level))
+          return
+        elif ret == 1:
+          weaponsGuessPosList[i] = 1
+          weaponsGuessPosList[j] = 0
+        else:
+          weaponsGuessPosList[j] = 1
+          weaponsGuessPosList[i] = 0
+        break
+        # no change - both positions wrong before and after
+      elif weaponsHitTot - weaponsHitTotOld == 0: 
+        # undo swap
+        weaponsGuessList[i],  weaponsGuessList[j] = weaponsGuessList[j], weaponsGuessList[i]  
+        weaponsGuessPosList[i] = weaponsGuessPosList[j] = 0
+        weaponsHitTot = weaponsHitTotOld
+
+
+  print("Final after rearranging:weaponsGuessList = %s " %(weaponsGuessList), 
+  "weaponsPoolList =  %s \n" %(weaponsPoolList),   
+  "weaponsGuessPosList = %s\n" %(weaponsGuessPosList))
+  return
+
+# pick a subset of the the big list of weapons as the guess list 
+# pick the subset that gives the best score
+#
+def PickWeaponsGuessList(level, numWeapons, numGladiators, weaponsFullList):
+  max = 0
+  n = int(numWeapons/numGladiators)
+  for i in range(n):
+    testWeaponsList = weaponsFullList[i*numGladiators:(i+1)*numGladiators]
+    r, msg, ret = Attack(level, testWeaponsList) 
+    score = int(r[0])
+    if score > max:
+      max = score
+      testWeaponsListMax = testWeaponsList 
+      print("i = %d score = %d max = %d" %(i, score, max))
+
+  return testWeaponsListMax 
+
+def ReduceWeaponsGuessList(level, numWeapons, numGladiators, weaponsFullList):
+  n = int(numWeapons/numGladiators)
+  testWeaponsList = n*[[]]
+  max = 0
+  hits_max = 0
+  for i in range(n):
+    testWeaponsList[i] = weaponsFullList[i*numGladiators:(i+1)*numGladiators]
+
+  for i in range(n):
+    r, msg, ret = Attack(level, testWeaponsList[i]) 
+    score = int(r[0])
+    hits = int(r[1])
+    if score == 0:
+      print("testWeaponsList[%d] = %s gives 0 score. removing .." %(i, testWeaponsList[i]))
+      for j in testWeaponsList[i]:
+        weaponsFullList.remove(j)
+      # chances are low that we'll get another 0 score
+      # break
+    else:
+      if score > max or (score == max and hits > hits_max):
+        max = score
+        hits_max = hits
+        testWeaponsListMax = testWeaponsList[i] 
+        print("i = %d score = %d max = %d" %(i, score, max))
+
+  return testWeaponsListMax 
+
+
+if __name__ == "__main__":
+  if sys.version_info < (3,0):
+    sys.exit('Python version < 3.0 does not support modern TLS versions. You will have trouble connecting to our API using Python 2.X.')
+  email = 'jai@xyz.com'
+  SetAuth() 
+  #Reset()
+  maxLevel = 5
+  level = 4
+  numGladiators, numWeapons, numRounds =  SetLevel(level)
+  # put all weapons in a big list and shuffle them, then pick the first few as the guess
+  weaponsRandList = [i for i in range(numWeapons)]
+  # comment if no shuffle needed
+  random.shuffle(weaponsRandList) 
+  #
+  # reduce the full list if possible by breaking it up into parts and eliminiating one ore more parts. this call also returns a guess list with max score
+  weaponsGuessList = ReduceWeaponsGuessList(level, numWeapons, numGladiators, weaponsRandList)
+  # total list has been reduced and is in weaponsRandList now. separate into 2 parts - one for weapons and rest into the pool0
+  #weaponsGuessList = weaponsRandList[:numGladiators]
+  #weaponsPoolList = weaponsRandList[numGladiators:]
+  #
+  # use below to pick the guess list returned above and put rest into pool
+  weaponsPoolList = list(set(weaponsRandList) - set(weaponsGuessList))
+
+  #
+  # To pick the best guess by partitioning the list and sending some attacks with each
+  #weaponsGuessList = PickWeaponsGuessList(level, numWeapons, numGladiators, weaponsRandList)
+  #weaponsPoolList = list(set(weaponsRandList) - set(weaponsGuessList))
+
+
+  weaponsGuessPosList = numGladiators*[-1]
+
+  for round in range(1,numRounds+1):
+    Game(level, numGladiators, weaponsGuessList, weaponsPoolList, weaponsGuessPosList)
+
+  if level == maxLevel:
+    hash = GetHash()
+    print("level = %d hash = %s\n" %(level, hash)) 

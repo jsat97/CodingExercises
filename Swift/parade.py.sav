@@ -1,0 +1,68 @@
+#!/usr/bin/python
+import sys
+
+parade_list=[]
+indx = 0
+error = False
+cntry_pairs = []
+for line in sys.stdin:
+  print "line :", line
+  line_list = line.strip().split()
+  i = line_list.index("comes")
+  c1 = " ".join(line_list[0:i])
+  i += 1
+  pos = line_list[i]
+  assert(pos == "before" or pos == "after")
+  i += 1
+  c2 = " ".join(line_list[i:])
+
+  print "c1, c2", c1, c2
+  if pos == "before":
+    cntry_pairs.append([c1,c2])
+  else:
+    cntry_pairs.append([c2,c1])
+print "cntry_pairs ", cntry_pairs 
+
+for c1,c2 in cntry_pairs:       #c1 before c2 always
+  if c1 not in parade_list:
+    if c2 not in parade_list:     # both absent
+     #if pos == "before":
+       parade_list.insert(indx, c2)
+       parade_list.insert(parade_list.index(c2), c1)
+     #elif pos == "after":
+     #  parade_list.insert(indx, c1)
+     #  parade_list.insert(parade_list.index(c1), c2)
+    else:    #c1 not present, c2 present 
+     #if pos == "before":
+       parade_list.insert(parade_list.index(c2), c1)
+     #elif pos == "after":
+     #  if parade_list.index(c2) == len(parade_list) -1:
+     #    parade_list.append(c1)
+     #  else:
+     #    parade_list.insert(parade_list.index(c2)+1, c1)
+  else: 
+   if c2 not in parade_list:   #c1 present, c2 not present - insert at 0 for both cases
+     #if pos == "before":
+       if parade_list.index(c1) == len(parade_list) -1:
+         parade_list.append(c2)
+       else:
+         parade_list.insert(parade_list.index(c1)+1, c2)
+     #elif pos == "after":
+     #  parade_list.insert(indx, c2)
+     
+   else:   #both present - if already in order, nothing to do. else need to check and reorder
+     #if pos == "before":
+      #if parade_list.index(c1) > parade_list.index(c2):
+        print "invalid :", line
+        print "current list: ", parade_list
+        error = True
+        break
+     #else:
+     #  if parade_list.index(c1) < parade_list.index(c2):
+     #    print "invalid :", line
+     #    print "current list: ", parade_list
+     #    error = True
+     #    break
+
+if not error:
+  print "final  list: ", parade_list

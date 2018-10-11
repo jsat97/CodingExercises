@@ -1,0 +1,5 @@
+CFLAGS=-c -Wall -W -Wformat-y2k -Wformat-nonliteral -Wformat-security -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused -Wunknown-pragmas -Wstrict-aliasing -Wstrict-overflow=2 -Wstrict-overflow=3  -Wstrict-overflow=4 -Wstrict-overflow=5  -Wfloat-equal -Wdeclaration-after-statement -Wundef -Wshadow -Wunsafe-loop-optimizations -Wpointer-arith -Wbad-function-cast -Wc++-compat -Wcast-qual -Wcast-align -Wwrite-strings -Wlogical-op -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -Wmissing-format-attribute -Wpacked -Wpadded -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvla -Wvolatile-register-var -Wdisabled-optimization -Wstack-protector -Woverlength-strings -Wattributes -Wcoverage-mismatch -Wmultichar -Wunused-macros -Wno-missing-field-initializers -Wno-pointer-sign -fdiagnostics-show-option -g 
+chg_bits: chg_bits.o
+chg_bits.o: chg_bits.c
+chg_bits_input: chg_bits_input.o
+chg_bits_input.o: chg_bits_input.c

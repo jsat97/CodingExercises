@@ -1,0 +1,52 @@
+{'Auth-Token': '4e6f2b15ab272a095290d59350e5cb0872ac0eb77535e2dd741e1648ef13abc8'}
+{'numGuesses': 10, 'numGladiators': 5, 'numWeapons': 10, 'numRounds': 1}
+At start: weaponsGuessList = [0, 1, 2, 3, 4] weaponsPoolList =  [5, 6, 7, 8, 9]
+attackGuessList =  [0, 1, 2, 3, 4]
+Attack response : {'response': [3, 3]}
+weaponsOkTot = 3 numGladiators = 5
+attackGuessList =  [5, 1, 2, 3, 4]
+Attack response : {'response': [3, 2]}
+weaponsOkTot (3) == weaponsOkTotOld (3)
+good <- good. keeping old for better posn score
+ current =  0 weaponsHitTotOld = 3  weaponsHitTot = 3 
+ weaponsGuessList = [0, 1, 2, 3, 4]  weaponsPoolList = [5, 6, 7, 8, 9] 
+
+weaponsOkTot = 3 numGladiators = 5
+attackGuessList =  [0, 5, 2, 3, 4]
+Attack response : {'response': [3, 2]}
+weaponsOkTot (3) == weaponsOkTotOld (3)
+good <- good. keeping old for better posn score
+ current =  1 weaponsHitTotOld = 3  weaponsHitTot = 3 
+ weaponsGuessList = [0, 1, 2, 3, 4]  weaponsPoolList = [5, 6, 7, 8, 9] 
+
+weaponsOkTot = 3 numGladiators = 5
+attackGuessList =  [0, 1, 5, 3, 4]
+Attack response : {'response': [3, 2]}
+weaponsOkTot (3) == weaponsOkTotOld (3)
+good <- good. keeping old for better posn score
+ current =  2 weaponsHitTotOld = 3  weaponsHitTot = 3 
+ weaponsGuessList = [0, 1, 2, 3, 4]  weaponsPoolList = [5, 6, 7, 8, 9] 
+
+weaponsOkTot = 3 numGladiators = 5
+attackGuessList =  [0, 1, 2, 5, 4]
+Attack response : {'response': [4, 4]}
+weaponsOkTot (4) > weaponsOkTotOld (3)
+weaponsGuessList = [0, 1, 2, 5, 4] weaponsPoolList =  [6, 7, 8, 9]
+weaponsOkTot = 4 numGladiators = 5
+attackGuessList =  [0, 1, 2, 5, 6]
+Attack response : {'response': [4, 4]}
+weaponsOkTot (4) == weaponsOkTotOld (4)
+bad <- bad OR good <- good.
+current =  4 weaponsHitTotOld = 4  weaponsHitTot = 4
+ weaponsGuessList = [0, 1, 2, 5, 4]  weaponsPoolList =  [6, 7, 8, 9] 
+
+attackGuessList =  [0, 1, 2, 5, 7]
+Attack response : {'response': [4, 4]}
+weaponsOkTot (4) == weaponsOkTotOld (4)
+bad <- bad OR good <- good.
+current =  4 weaponsHitTotOld = 4  weaponsHitTot = 4
+ weaponsGuessList = [0, 1, 2, 5, 4]  weaponsPoolList =  [6, 7, 8, 9] 
+
+attackGuessList =  [0, 1, 2, 5, 8]
+Attack response : {'message': 'Onto the next level'}
+level 2 complete. returning
